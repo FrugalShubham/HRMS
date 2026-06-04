@@ -1,0 +1,42 @@
+import { Router } from 'express';
+import authRoutes from './auth.routes';
+import platformRoutes from './platform.routes';
+import employeeRoutes from './employee.routes';
+import departmentRoutes from './department.routes';
+import attendanceRoutes from './attendance.routes';
+import leaveRoutes from './leave.routes';
+import payrollRoutes from './payroll.routes';
+import holidayRoutes from './holiday.routes';
+import announcementRoutes from './announcement.routes';
+import assetRoutes from './asset.routes';
+import recruitmentRoutes from './recruitment.routes';
+import shiftRoutes from './shift.routes';
+import billingRoutes from './billing.routes';
+import aiRoutes from './ai.routes';
+import webhookRoutes from './webhook.routes';
+import uploadRoutes from './upload.routes';
+import companyRoutes from './company.routes';
+import jobsRoutes from './jobs.routes';
+
+const router = Router();
+
+router.use('/auth', authRoutes);
+router.use('/platform', platformRoutes);
+router.use('/employees', employeeRoutes);
+router.use('/departments', departmentRoutes);
+router.use('/attendance', attendanceRoutes);
+router.use('/leave', leaveRoutes);
+router.use('/payroll', payrollRoutes);
+router.use('/holidays', holidayRoutes);
+router.use('/announcements', announcementRoutes);
+router.use('/assets', assetRoutes);
+router.use('/recruitment', recruitmentRoutes);
+router.use('/shifts', shiftRoutes);
+router.use('/billing', billingRoutes);
+router.use('/ai', aiRoutes);
+router.use('/webhooks', webhookRoutes);
+router.use('/uploads', uploadRoutes);
+router.use('/company', companyRoutes);
+router.use('/jobs', jobsRoutes);
+
+export default router;

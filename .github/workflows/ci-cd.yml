@@ -1,0 +1,106 @@
+name: HRFlow AI CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY_API: hrflow-api
+  ECR_REPOSITORY_WEB: hrflow-web
+
+jobs:
+  lint-and-test-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test --if-present
+
+  lint-and-test-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  deploy-staging:
+    needs: [lint-and-test-backend, lint-and-test-frontend]
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push API image
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_API:staging-${{ github.sha }} ./backend
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_API:staging-${{ github.sha }}
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      - name: Build and push Web image
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_WEB:staging-${{ github.sha }} ./frontend
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_WEB:staging-${{ github.sha }}
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      - name: Deploy to ECS (staging)
+        run: |
+          aws ecs update-service --cluster hrflow-staging --service hrflow-api --force-new-deployment
+          aws ecs update-service --cluster hrflow-staging --service hrflow-web --force-new-deployment
+
+  deploy-production:
+    needs: [lint-and-test-backend, lint-and-test-frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push production images
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_API:prod-${{ github.sha }} ./backend
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_API:prod-${{ github.sha }}
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_WEB:prod-${{ github.sha }} ./frontend
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_WEB:prod-${{ github.sha }}
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      - name: Deploy to ECS (production)
+        run: |
+          aws ecs update-service --cluster hrflow-prod --service hrflow-api --force-new-deployment
+          aws ecs update-service --cluster hrflow-prod --service hrflow-web --force-new-deployment
